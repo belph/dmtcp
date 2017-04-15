@@ -75,6 +75,8 @@ enum DmtcpMessageType {
   DMT_NAME_SERVICE_GET_UNIQUE_ID,
   DMT_NAME_SERVICE_GET_UNIQUE_ID_RESPONSE,
 
+  DMT_GET_SENTINEL_PID, // get pid of sentinel process (for namespaces)
+
   DMT_OK,                    // slave telling coordinator it is done (response
                              // to DMT_DO_*)  this means slave reached barrier
 };
@@ -109,6 +111,7 @@ struct DmtcpMessage {
 
   pid_t virtualPid;
   pid_t realPid;
+  pid_t sentinelPid;
 
   char nsid[8];
   uint32_t keyLen;

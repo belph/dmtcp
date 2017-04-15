@@ -575,6 +575,40 @@ sendRecvHandshake(int fd,
   return msg;
 }
 
+pid_t
+getSentinelPid(string progname)
+{
+  JASSERT(!noCoordinator());
+  struct sockaddr_storage addr;
+  uint32_t len;
+  JNOTE("getting addr");
+  SharedData::getCoordAddr((struct sockaddr *)&addr, &len);
+  socklen_t addrlen = len;
+  JNOTE("Initializing socket");
+  int sock = jalib::JClientSocket((struct sockaddr *)&addr, addrlen);
+  JASSERT(sock != -1);
+
+
+  /*JASSERT(localIP != NULL && coordInfo != NULL);*/
+  /*if (mode & COORD_NONE) {
+    setupVirtualCoordinator(coordInfo, localIP);
+    return -1;
+  }*/
+  /*int sock = coordinatorSocket;
+  JASSERT(nsSock != -1);
+
+  createNewConnToCoord(mode);*/
+  JNOTE("Requesting sentinel pid from coordinator");
+  DmtcpMessage hello_local(DMT_GET_SENTINEL_PID);
+  DmtcpMessage hello_remote = sendRecvHandshake(sock,
+                                                hello_local,
+                                                progname);
+  JASSERT(hello_remote.sentinelPid != -1);
+  JNOTE("Got sentinel pid from coordinator") (hello_remote.sentinelPid);
+  JASSERT(close(sock) == 0) .Text("Failed to close socket");
+  return hello_remote.sentinelPid;
+}
+
 void
 connectToCoordOnStartup(CoordinatorMode mode,
                         string progname,

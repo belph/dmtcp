@@ -62,8 +62,12 @@
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sched.h>
+#include <sys/mount.h>
+#include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -241,6 +245,72 @@ CoordClient::readProcessInfo(DmtcpMessage &msg)
   }
 }
 
+static void
+run_dummy_process(int pipe_fd)
+{
+  // TODO: mount, etc.
+  // Dummy process should die when coordinator dies
+  prctl(PR_SET_PDEATHSIG, SIGHUP);
+  char c;
+  // Blocks until uid/gid maps are written
+  JASSERT(read(pipe_fd, &c, 1) >= 0)
+    (JASSERT_ERRNO).Text("read from pipe failed");
+  JASSERT(close(pipe_fd) == 0)
+    .Text("Failed to close pipe_fd in child");
+  JASSERT(mount("proc", "/proc", "proc", 0, NULL) != -1)
+    .Text("Failed to mount /proc");
+  JNOTE("successfully initialized sentinel process");
+  pause();
+}
+
+DmtcpCoordinator::DmtcpCoordinator()
+{
+  int pipe_fds[2];
+  JASSERT(pipe(pipe_fds) != -1) .Text("Failed to set up pipes");
+  int ret = syscall(SYS_clone,
+                    SIGCHLD | CLONE_NEWPID |
+                    CLONE_NEWUSER | CLONE_NEWNS, 0, NULL, NULL, 0);
+  JASSERT(ret != -1) .Text("Failed to set up sentinel process");
+  if (ret == 0) {
+    JASSERT(close(pipe_fds[1]) != -1)
+      (JASSERT_ERRNO).Text("Failed to close write end of pipe in child");
+    run_dummy_process(pipe_fds[0]);
+    exit(0);
+  }
+  _sentinel_pid = ret;
+  char filename[64];
+  snprintf(filename, 64, "/proc/%d/uid_map", _sentinel_pid);
+  int uid = getuid();
+  int gid = getgid();
+  char to_write_uid[32];
+  char to_write_gid[32];
+  snprintf(to_write_uid, 32, "0 %d 1\n", uid);
+  snprintf(to_write_gid, 32, "0 %d 1\n", gid);
+  int uid_fd, sg_fd, gid_fd;
+  JASSERT((uid_fd = open(filename, O_RDWR)) != 0)
+    .Text("Failed to open UID map");
+  JASSERT((size_t)write(uid_fd, to_write_uid, strlen(to_write_uid))
+          == strlen(to_write_uid)) .Text("Failed to write UID map");
+  JASSERT(close(uid_fd) == 0) .Text("Failed to close UID map");
+
+  snprintf(filename, 64, "/proc/%d/setgroups", _sentinel_pid);
+  JASSERT((sg_fd = open(filename, O_RDWR)) != 0)
+    .Text("Failed to open setgroups");
+  JASSERT((size_t)write(sg_fd, "deny", 4) == 4)
+    .Text("Failed to write to setgroups");
+  JASSERT(close(sg_fd) == 0) .Text("Failed to close setgroups");
+
+  snprintf(filename, 64, "/proc/%d/gid_map", _sentinel_pid);
+  JASSERT((gid_fd = open(filename, O_RDWR)) != 0)
+    .Text("Failed to open GID map");
+  JASSERT((size_t)write(gid_fd, to_write_gid, strlen(to_write_gid))
+          == strlen(to_write_gid)) .Text("Failed to write GID map");
+  JASSERT(close(uid_fd) == 0) .Text("Failed to close GID map");
+
+  // Close pipe, signalling to dummy process that maps have been written
+  JASSERT(close(pipe_fds[1]) == 0) .Text("Failed to close pipe");
+}
+
 pid_t
 DmtcpCoordinator::getNewVirtualPid()
 {
@@ -339,6 +409,7 @@ DmtcpCoordinator::handleUserCommand(char cmd, DmtcpMessage *reply /*= NULL*/)
   case 'q': case 'Q':
   {
     JNOTE("killing all connected peers and quitting ...");
+    kill(_sentinel_pid, SIGTERM);
     broadcastMessage(DMT_KILL_PEER);
     JASSERT_STDERR << "DMTCP coordinator exiting... (per request)\n";
     for (size_t i = 0; i < clients.size(); i++) {
@@ -783,6 +854,8 @@ DmtcpCoordinator::onConnect()
   struct sockaddr_storage remoteAddr;
   socklen_t remoteLen = sizeof(remoteAddr);
   jalib::JSocket remote = listenSock->accept(&remoteAddr, &remoteLen);
+  const struct sockaddr_in *sin = (const struct sockaddr_in *)&remoteAddr;
+  string remoteIP = inet_ntoa(sin->sin_addr);
 
   JTRACE("accepting new connection") (remote.sockfd()) (JASSERT_ERRNO);
 
@@ -800,6 +873,19 @@ DmtcpCoordinator::onConnect()
     return;
   }
 
+  if (hello_remote.type == DMT_GET_SENTINEL_PID) {
+    JTRACE("Got request for sentinel PID");
+    DmtcpMessage msg(DMT_ACCEPT);
+    msg.sentinelPid = _sentinel_pid;
+    if (Util::strStartsWith(remoteIP, "127.")) {
+      memcpy(&msg.ipAddr, &localhostIPAddr, sizeof localhostIPAddr);
+    } else {
+      memcpy(&msg.ipAddr, &sin->sin_addr, sizeof localhostIPAddr);
+    }
+    remote << msg;
+    remote.close();
+    return;
+  }
   if (hello_remote.type == DMT_NAME_SERVICE_WORKER) {
     CoordClient *client = new CoordClient(remote, &remoteAddr, remoteLen,
                                           hello_remote);
@@ -1102,6 +1188,7 @@ DmtcpCoordinator::validateNewWorkerProcess(
         (hello_remote.from) (client->virtualPid());
     }
     hello_local.compGroup = compId;
+    hello_local.sentinelPid = _sentinel_pid;
     hello_local.coordTimeStamp = curTimeStamp;
     if (Util::strStartsWith(remoteIP, "127.")) {
       memcpy(&hello_local.ipAddr, &localhostIPAddr, sizeof localhostIPAddr);

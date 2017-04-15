@@ -23,6 +23,7 @@
 #include <limits.h>
 #include <stdio.h>
 #include <sys/fcntl.h>
+#include <sys/file.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -43,6 +44,8 @@
 
 #define BINARY_NAME         "dmtcp_restart"
 #define MTCP_RESTART_BINARY "mtcp_restart"
+
+#define NS_LAST_PID "/proc/sys/kernel/ns_last_pid"
 
 using namespace dmtcp;
 
@@ -134,6 +137,7 @@ static void setEnvironFd();
 static void runMtcpRestart(int is32bitElf, int fd, ProcessInfo *pInfo);
 static int readCkptHeader(const string &path, ProcessInfo *pInfo);
 static int openCkptFileToRead(const string &path);
+static int forkWithPid(int pid);
 
 class RestoreTarget
 {
@@ -203,7 +207,7 @@ class RestoreTarget
 
     void createDependentChildProcess()
     {
-      pid_t pid = fork();
+      pid_t pid = forkWithPid(_pInfo.pid());
 
       JASSERT(pid != -1);
       if (pid != 0) {
@@ -218,7 +222,7 @@ class RestoreTarget
 
       JASSERT(pid != -1);
       if (pid == 0) {
-        pid_t gchild = fork();
+        pid_t gchild = forkWithPid(_pInfo.pid());
         JASSERT(gchild != -1);
         if (gchild != 0) {
           exit(0);
@@ -231,7 +235,7 @@ class RestoreTarget
 
     void createOrphanedProcess(bool createIndependentRootProcesses = false)
     {
-      pid_t pid = fork();
+      pid_t pid = forkWithPid(_pInfo.pid());
 
       JASSERT(pid != -1);
       if (pid == 0) {
@@ -737,6 +741,65 @@ setNewCkptDir(char *path)
   }
 }
 
+static int
+forkWithPid(int pid)
+{
+  JASSERT(pid > 1) (pid);
+  int fd = open(NS_LAST_PID, O_RDWR | O_CREAT, 0644);
+  JASSERT(fd != -1) (NS_LAST_PID);
+  JASSERT(flock(fd, LOCK_EX) != -1)
+    (NS_LAST_PID).Text("failed to lock ns_last_pid file");
+
+  char to_write[16];
+  snprintf(to_write, 16, "%d", pid - 1);
+  JASSERT((size_t)write(fd, to_write, strlen(to_write))
+          == strlen(to_write))
+    (NS_LAST_PID).Text("failed to write to ns_last_pid");
+  int new_pid = fork();
+  if (new_pid == 0) {
+    JASSERT(close(fd) != -1)
+      (NS_LAST_PID).Text("failed to close in child");
+    return 0;
+  }
+  // Still in parent. Unlock and close
+  JASSERT(new_pid == pid)
+    (pid).Text("failed to fork with correct PID");
+  JASSERT(flock(fd, LOCK_UN) != -1)
+    (NS_LAST_PID).Text("failed to unlock ns_last_pid file");
+  JASSERT(close(fd) != -1)
+    (NS_LAST_PID).Text("failed to close in parent");
+  return new_pid;
+}
+
+static void
+connect_to_namespace(pid_t sentinel) {
+  char filename[64];
+  snprintf(filename, 64, "/proc/%d/ns/user", sentinel);
+  int fd;
+  JASSERT((fd = open(filename, O_RDONLY, 0644)) != -1)
+    .Text("Failed to open user namespace");
+  JASSERT(setns(fd, CLONE_NEWUSER) == 0)
+    .Text("Failed to set user namespace");
+  JASSERT(close(fd) == 0)
+    .Text("Failed to close user namespace");
+
+  snprintf(filename, 64, "/proc/%d/ns/mnt", sentinel);
+  JASSERT((fd = open(filename, O_RDONLY, 0644)) != -1)
+    .Text("Failed to open mount namespace");
+  JASSERT(setns(fd, CLONE_NEWNS) == 0)
+    .Text("Failed to set mount namespace");
+  JASSERT(close(fd) == 0)
+    .Text("Failed to close mount namespace");
+
+  snprintf(filename, 64, "/proc/%d/ns/pid", sentinel);
+  JASSERT((fd = open(filename, O_RDONLY, 0644)) != -1)
+    .Text("Failed to open pid namespace");
+  JASSERT(setns(fd, CLONE_NEWPID) == 0)
+    .Text("Failed to set pid namespace");
+  JASSERT(close(fd) == 0)
+    .Text("Failed to close pid namespace");
+}
+
 // shift args
 #define shift argc--, argv++
 
@@ -953,15 +1016,48 @@ main(int argc, char **argv)
   .Text("Process had no coordinator prior to checkpoint;\n"
         "  but either --join-coordinator or --new-coordinator was specified.");
 
-  if (foundNonOrphan) {
-    t->createProcess(true);
-  } else {
-    /* we were unable to find any non-orphaned procs.
-     * pick the first one and orphan it */
-    t = independentProcessTreeRoots.begin()->second;
-    t->createOrphanedProcess(true);
-  }
+  string host = "";
+  int port = UNINITIALIZED_PORT;
+  int *port_p = &port;
+  CoordinatorAPI::getCoordHostAndPort(allowedModes, host, port_p);
 
-  JASSERT(false).Text("unreachable");
-  return -1;
+  CoordinatorInfo coordInfo;
+  struct in_addr localIPAddr;
+
+  pid_t sentinel_pid = CoordinatorAPI::getSentinelPid("dmtcp_restart");
+  connect_to_namespace(sentinel_pid);
+
+  pid_t child_pid;
+  pid_t new_pid;
+  char cmd[64];
+  if (foundNonOrphan) {
+    new_pid = t->pid();
+  } else {
+    new_pid = independentProcessTreeRoots.begin()->second->pid();
+  }
+  // HACK: The restarter itself cannot modify the ns_last_pid file
+  //       within the coordinator's PID namespace, so we delegate
+  //       out to sysctl. Note that children processes _will_ be
+  //       able to write to the file directly.
+  //       This should be safe, since no other processes are
+  //       running yet.
+  snprintf(cmd, 64, "sysctl kernel.ns_last_pid=%d", new_pid - 1);
+  system(cmd);
+  if (!(child_pid = fork())) {
+    if (foundNonOrphan) {
+      t->createProcess(true);
+    } else {
+      /* we were unable to find any non-orphaned procs.
+       * pick the first one and orphan it */
+      t = independentProcessTreeRoots.begin()->second;
+      t->createOrphanedProcess(true);
+    }
+
+    JASSERT(false).Text("unreachable");
+    return -1;
+  } else {
+    int wstatus;
+    waitpid(child_pid, &wstatus, 0);
+    return wstatus;
+  }
 }

@@ -94,6 +94,8 @@ class DmtcpCoordinator
       int numPeers;
     } ComputationStatus;
 
+    DmtcpCoordinator();
+
     void onData(CoordClient *client);
     void onConnect();
     void onDisconnect(CoordClient *client);
@@ -152,6 +154,8 @@ class DmtcpCoordinator
 
     size_t nextCkptBarrier;
     size_t nextRestartBarrier;
+
+    pid_t _sentinel_pid;
 };
 }
 #endif // ifndef DMTCPDMTCPCOORDINATOR_H

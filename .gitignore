@@ -16,6 +16,7 @@ core
 cscope.*
 dmtcpaware*
 *aclocal.m4*
+.dir-locals.el
 
 autom4te.cache
 

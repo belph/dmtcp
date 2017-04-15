@@ -107,6 +107,20 @@ namespace dmtcp
 {
 namespace Util
 {
+class NamespaceSet
+{
+  public:
+    NamespaceSet(pid_t pid);
+    void connectns();
+    void connect_pid_ns();
+    void connect_mnt_ns();
+    void connect_usr_ns();
+    void closens();
+  private:
+    int pid_fd;
+    int mnt_fd;
+    int usr_fd;
+};
 void lockFile(int fd);
 void unlockFile(int fd);
 int changeFd(int oldfd, int newfd);

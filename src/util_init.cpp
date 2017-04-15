@@ -36,6 +36,56 @@
 
 using namespace dmtcp;
 
+Util::NamespaceSet::NamespaceSet(pid_t pid) {
+  char filename[64];
+  snprintf(filename, 64, "/proc/%d/ns/user", pid);
+  JASSERT((usr_fd = open(filename, O_RDONLY, 0644)) != -1)
+    .Text("Failed to open user namespace");
+  snprintf(filename, 64, "/proc/%d/ns/mnt", pid);
+  JASSERT((mnt_fd = open(filename, O_RDONLY, 0644)) != -1)
+    .Text("Failed to open mount namespace");
+  snprintf(filename, 64, "/proc/%d/ns/pid", pid);
+  JASSERT((pid_fd = open(filename, O_RDONLY, 0644)) != -1)
+    .Text("Failed to open pid namespace");
+}
+
+void
+Util::NamespaceSet::connectns()
+{
+  connect_usr_ns();
+  connect_mnt_ns();
+  connect_pid_ns();
+}
+
+void
+Util::NamespaceSet::connect_usr_ns()
+{
+  JASSERT(setns(usr_fd, CLONE_NEWUSER) == 0)
+    .Text("Failed to set user namespace");
+}
+
+void
+Util::NamespaceSet::connect_mnt_ns()
+{
+  JASSERT(setns(mnt_fd, CLONE_NEWNS) == 0)
+    .Text("Failed to set mount namespace");
+}
+
+void
+Util::NamespaceSet::connect_pid_ns()
+{
+  JASSERT(setns(pid_fd, CLONE_NEWPID) == 0)
+    .Text("Failed to set pid namespace");
+}
+
+void
+Util::NamespaceSet::closens()
+{
+  JASSERT(close(usr_fd) == 0) .Text("Failed to close user namespace");
+  JASSERT(close(mnt_fd) == 0) .Text("Failed to close mount namespace");
+  JASSERT(close(pid_fd) == 0) .Text("Failed to close pid namespace");
+}
+
 void
 Util::writeCoordPortToFile(int port, const char *portFile)
 {

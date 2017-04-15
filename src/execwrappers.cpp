@@ -146,6 +146,7 @@ pthread_atfork_child()
     return;
   }
   pthread_atfork_enabled = false;
+  JNOTE("pthread_atfork_child");
 
   uint64_t host = UniquePid::ThisProcess().hostid();
   UniquePid parent = UniquePid::ThisProcess();

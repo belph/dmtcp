@@ -378,7 +378,10 @@ jalib::Filesystem::GetControllingTerm(pid_t pid /* = -1*/)
   }
   fd = jalib::open(procPath, O_RDONLY, 0);
 
+  char orig_pid_ns[64] = { 0 };
+  readlink("/proc/self", orig_pid_ns, 64);
   JASSERT(fd >= 0) (strerror(errno))
+    .Text(orig_pid_ns)
   .Text("Unable to open /proc/self/stat\n");
 
   num_read = read(fd, sbuf, sizeof sbuf - 1);

@@ -273,6 +273,8 @@ static jalib::JBuffer *buf = NULL;
 extern "C" void
 dmtcp_initialize()
 {
+  int i = 0;
+  while(!i);
   static bool initialized = false;
 
   if (initialized) {

@@ -209,7 +209,8 @@ SocketConnList::scanForPreExisting()
 
     string device = jalib::Filesystem::GetDeviceName(fd);
 
-    JTRACE("scanning pre-existing device") (fd) (device);
+    pid_t curpid = getpid();
+    JNOTE("scanning pre-existing device") (fd) (device) (curpid);
     if (device ==
         jalib::Filesystem::GetControllingTerm()) {} else if (dmtcp_is_bq_file &&
                                                              dmtcp_is_bq_file(

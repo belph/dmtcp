@@ -75,6 +75,7 @@ static void start_helper_thread(void);
 static void
 timer_create_reset_on_fork(void)
 {
+  JNOTE("timer_create_reset_on_fork");
   helper_once = PTHREAD_ONCE_INIT;
   helper_tid = 0;
 }

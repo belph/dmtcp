@@ -56,6 +56,7 @@ typedef struct CoordinatorInfo {
   uint64_t timeStamp;
   uint32_t interval;
   uint32_t addrLen;
+  uint32_t sentinel_pid;
   struct sockaddr_storage addr;
 } CoordinatorInfo;
 
