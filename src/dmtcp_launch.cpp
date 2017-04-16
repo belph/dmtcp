@@ -411,38 +411,6 @@ processArgs(int *orig_argc,
   *orig_argv = argv;
 }
 
-static void
-connect_to_namespace(pid_t sentinel) {
-  char filename[64];
-  snprintf(filename, 64, "/proc/%d/ns/user", sentinel);
-  int fd_user, fd_mnt, fd_pid;
-  JASSERT((fd_user = open(filename, O_RDONLY, 0644)) != -1)
-    .Text("Failed to open user namespace");
-  snprintf(filename, 64, "/proc/%d/ns/mnt", sentinel);
-  JASSERT((fd_mnt = open(filename, O_RDONLY, 0644)) != -1)
-    .Text("Failed to open mount namespace");
-  snprintf(filename, 64, "/proc/%d/ns/pid", sentinel);
-  JASSERT((fd_pid = open(filename, O_RDONLY, 0644)) != -1)
-    .Text("Failed to open pid namespace");
-
-  JASSERT(setns(fd_user, CLONE_NEWUSER) == 0)
-    .Text("Failed to set user namespace");
-  JASSERT(close(fd_user) == 0)
-    .Text("Failed to close user namespace");
-
-
-  JASSERT(setns(fd_mnt, CLONE_NEWNS) == 0)
-    .Text("Failed to set mount namespace");
-  JASSERT(close(fd_mnt) == 0)
-    .Text("Failed to close mount namespace");
-
-
-
-  JASSERT(setns(fd_pid, CLONE_NEWPID) == 0)
-    .Text("Failed to set pid namespace");
-  JASSERT(close(fd_pid) == 0)
-    .Text("Failed to close pid namespace");
-}
 
 int
 main(int argc, char **argv)
@@ -608,12 +576,37 @@ main(int argc, char **argv)
   DmtcpUniqueProcessId compId;
   CoordinatorInfo coordInfo;
   struct in_addr localIPAddr;
+
   int port = (portStr ? jalib::StringToInt(portStr) : UNINITIALIZED_PORT);
+  JNOTE("getCoordHostAndPort call");
+  CoordinatorAPI::getCoordHostAndPort(allowedModes, host, &port);
+  JNOTE("getCoordHostAndPort returned") (port);
+  JNOTE("getting sentinel PID");
+  pid_t sentinel_pid =
+    CoordinatorAPI::connectAndGetSentinelPid(allowedModes, argv[0]);
+  pid_t initial_pid = getpid();
+  JNOTE("initial pid") (initial_pid);
+  Util::NamespaceSet dmtcp_namespace(sentinel_pid);
+  JNOTE("Connecting to namespaces of process: ").Print(sentinel_pid);
+  dmtcp_namespace.connectns();
+  dmtcp_namespace.closens();
+  pid_t child_pid;
+  JASSERT((child_pid = fork()) >= 0)
+    .Text("Failed to fork launcher");
+
+  if (child_pid) {
+    return Util::continueAsChild(child_pid);
+    JASSERT(false);
+  }
+  JNOTE("in child");
+
+
 
   // Initialize host and port now.  Will be used in low-level functions.
   JNOTE("getCoordHostAndPort call");
   CoordinatorAPI::getCoordHostAndPort(allowedModes, host, &port);
   JNOTE("getCoordHostAndPort returned") (port);
+
   CoordinatorAPI::connectToCoordOnStartup(allowedModes, argv[0],
                                           &compId, &coordInfo,
                                           &localIPAddr);
@@ -622,6 +615,7 @@ main(int argc, char **argv)
   // If port was 0, we'll get new random port when coordinator starts up.
   CoordinatorAPI::getCoordHostAndPort(allowedModes, host, &port);
   JNOTE("getCoordHostAndPort returned");
+
 
 
   Util::writeCoordPortToFile(port, thePortFile.c_str());
@@ -658,65 +652,57 @@ main(int argc, char **argv)
 
   setLDPreloadLibs(is32bitElf);
 
-  JNOTE("getting sentinel PID");
-  pid_t sentinel_pid = CoordinatorAPI::getSentinelPid(argv[0]);
+  // JNOTE("getting sentinel PID");
+  // pid_t sentinel_pid = CoordinatorAPI::getSentinelPid(argv[0]);
 
-  pid_t this_pid = getpid();
-  JNOTE("current pid") (this_pid);
+  // pid_t this_pid = getpid();
+  // JNOTE("current pid") (this_pid);
   // Util::NamespaceSet this_namespace(this_pid);
-  Util::NamespaceSet dmtcp_namespace(sentinel_pid);
-  JNOTE("Connecting to namespaces of process: ").Print(sentinel_pid);
-  dmtcp_namespace.connectns();
-  dmtcp_namespace.closens();
+  // Util::NamespaceSet dmtcp_namespace(sentinel_pid);
+  // JNOTE("Connecting to namespaces of process: ").Print(sentinel_pid);
+  // dmtcp_namespace.connectns();
+  // dmtcp_namespace.closens();
   // this_namespace.closens();
   // connect_to_namespace(sentinel_pid);
   // dmtcp_namespace.connectns();
   // dmtcp_namespace.closens();
-  pid_t child_pid;
-  if ((child_pid = fork())) {
-    JASSERT(close(PROTECTED_COORD_FD) == 0)
-      .Text("Failed to close coordinator socket");
-    this_pid = getpid();
-    JNOTE("current pid") (this_pid);
-    // Fork so we are now in the proper namespace
-    // this_namespace.connect_mnt_ns();
-    // this_namespace.closens();
-    // system("dmtcp_nocheckpoint ls /proc");
-    int status;
-    pid_t ret;
-    siginfo_t info;
-    char orig_pid_ns[64] = { 0 };
-    readlink("/proc/self", orig_pid_ns, 64);
-    JNOTE("/proc/self").Text(orig_pid_ns);
-    // system("echo 'parent' && stat /proc/self/stat");
-    while (1) {
-      ret = waitid(P_PID, child_pid, &info, WUNTRACED);
-      if ((WIFSTOPPED(info.si_status))) {
-        // Suspended child
-        kill(this_pid, SIGSTOP);
-        kill(info.si_pid, SIGCONT);
-      } else if (ret < 0) {
-        break;
-      }
-    }
-    return status;
-  } else {
-    int i = 0;
-    JNOTE("looping");
-    // while(!i);
-    pid_t grandchild_pid;
+  // pid_t child_pid;
+  // if ((child_pid = fork())) {
+  //   JASSERT(close(PROTECTED_COORD_FD) == 0)
+  //     .Text("Failed to close coordinator socket");
+  //   this_pid = getpid();
+  //   JNOTE("current pid") (this_pid);
+  //   // Fork so we are now in the proper namespace
+  //   // this_namespace.connect_mnt_ns();
+  //   // this_namespace.closens();
+  //   // system("dmtcp_nocheckpoint ls /proc");
+  //   int status;
+  //   pid_t ret;
+  //   siginfo_t info;
+  //   char orig_pid_ns[64] = { 0 };
+  //   readlink("/proc/self", orig_pid_ns, 64);
+  //   JNOTE("/proc/self").Text(orig_pid_ns);
+  //   // system("echo 'parent' && stat /proc/self/stat");
+  //   return Util::continueAsChild(child_pid);
+  // } else {
+  //   int i = 0;
+  //   JNOTE("looping");
+  //   // while(!i);
+  //   pid_t grandchild_pid;
     // TODO: Should do CLONE_PARENT or whatever
 
     /* if ((grandchild_pid = _real_syscall(SYS_clone, SIGCHLD | CLONE_PARENT, 0, NULL, NULL, 0))) {
       return 0;
     }*/
 
-    this_pid = getpid();
+    pid_t this_pid = getpid();
     // system("ls /proc");
     JNOTE("current pid (child)") (this_pid);
     char orig_pid_ns[64] = { 0 };
     readlink("/proc/self", orig_pid_ns, 64);
     JNOTE("/proc/self").Text(orig_pid_ns);
+    // int i = 0;
+    // while(!i);
     // system("stat /proc/self/stat");
     // char *args_zsh[] = {"/bin/zsh"};
     // _real_execv("/bin/zsh", args_zsh);
@@ -727,7 +713,7 @@ main(int argc, char **argv)
     } else {
       execvp(argv[0], argv);
     }
-  }
+    // }
 
   // should be unreachable
   JASSERT_STDERR <<

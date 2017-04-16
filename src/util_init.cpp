@@ -86,6 +86,34 @@ Util::NamespaceSet::closens()
   JASSERT(close(pid_fd) == 0) .Text("Failed to close pid namespace");
 }
 
+// Same logic as `continue_as_child` from nsenter
+int
+Util::continueAsChild(pid_t child_pid) {
+  pid_t parent_pid = getpid();
+  JNOTE("suspending execution of parent process in favor of child")
+    (parent_pid) (child_pid);
+  pid_t ret;
+  int status;
+  while (1) {
+    ret = waitpid(child_pid, &status, WUNTRACED);
+    if ((ret == child_pid) && WIFSTOPPED(status)) {
+      /* If we get here, the child was suspended.
+       * We suspend the parent and continue the child.
+       */
+      kill(parent_pid, SIGSTOP);
+      kill(child_pid, SIGCONT);
+    } else {
+      break;
+    }
+  }
+  if (WIFEXITED(status)) {
+    return WEXITSTATUS(status);
+  } else if (WIFSIGNALED(status)) {
+    kill(parent_pid, WTERMSIG(status));
+  }
+  return EXIT_FAILURE;
+}
+
 void
 Util::writeCoordPortToFile(int port, const char *portFile)
 {

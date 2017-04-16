@@ -273,8 +273,9 @@ static jalib::JBuffer *buf = NULL;
 extern "C" void
 dmtcp_initialize()
 {
-  int i = 0;
-  while(!i);
+  // int i = 0;
+  // while(!i);
+
   static bool initialized = false;
 
   if (initialized) {
@@ -291,6 +292,7 @@ dmtcp_initialize()
   dmtcp_prepare_wrappers();
 
   initializeJalib();
+  JNOTE("dmtcp_initialize start");
   dmtcp_prepare_atfork();
 
   WorkerState::setCurrentState(WorkerState::RUNNING);
@@ -337,6 +339,7 @@ dmtcp_initialize()
 
   ThreadSync::initMotherOfAll();
   ThreadList::init();
+  JNOTE("dmtcp_initialize end");
 }
 
 // called before user main()

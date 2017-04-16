@@ -50,7 +50,10 @@ void getCoordHostAndPort(CoordinatorMode mode, string &host, int *port);
 void waitForCheckpointCommand();
 bool noCoordinator();
 
+void closeConnection();
 pid_t getSentinelPid(string progname);
+pid_t connectAndGetSentinelPid(CoordinatorMode mode,
+                               string progname);
 void connectToCoordOnStartup(CoordinatorMode  mode,
                              string           progname,
                              DmtcpUniqueProcessId *compId,

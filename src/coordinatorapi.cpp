@@ -609,6 +609,31 @@ getSentinelPid(string progname)
   return hello_remote.sentinelPid;
 }
 
+pid_t
+connectAndGetSentinelPid(CoordinatorMode mode,
+                         string progname) {
+  if (mode & COORD_NONE) {
+    // Not 100% sure, but I'd imagine this could lead to
+    // strange behavior.
+    JWARNING("Called connectAndGetSentinelPid with COORD_NONE");
+    // TODO: figure out
+    // setupVirtualCoordinator(coordInfo, localIP);
+    // *compId = coordInfo->id;
+    return -1;
+  }
+  createNewConnToCoord(mode);
+  JTRACE("getting coordinator sentinel PID")(UniquePid::ThisProcess());
+
+  DmtcpMessage hello_local(DMT_GET_SENTINEL_PID);
+  DmtcpMessage hello_remote = sendRecvHandshake(coordinatorSocket,
+                                                hello_local,
+                                                progname);
+  JASSERT(hello_remote.sentinelPid != -1);
+  JNOTE("Got sentinel pid from coordinator") (hello_remote.sentinelPid);
+  closeConnection();
+  return hello_remote.sentinelPid;
+}
+
 void
 connectToCoordOnStartup(CoordinatorMode mode,
                         string progname,
@@ -636,6 +661,8 @@ connectToCoordOnStartup(CoordinatorMode mode,
   JASSERT(hello_remote.virtualPid != -1);
   JTRACE("Got virtual pid from coordinator") (hello_remote.virtualPid);
 
+  // TODO: Check for sure, but our changes should make it so
+  //       that virtual PID == real PID
   pid_t ppid = getppid();
   Util::setVirtualPidEnvVar(hello_remote.virtualPid, ppid, ppid);
 

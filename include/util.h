@@ -121,6 +121,7 @@ class NamespaceSet
     int mnt_fd;
     int usr_fd;
 };
+int continueAsChild(pid_t child_pid);
 void lockFile(int fd);
 void unlockFile(int fd);
 int changeFd(int oldfd, int newfd);
