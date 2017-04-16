@@ -410,6 +410,8 @@ DmtcpCoordinator::handleUserCommand(char cmd, DmtcpMessage *reply /*= NULL*/)
   {
     JNOTE("killing all connected peers and quitting ...");
     kill(_sentinel_pid, SIGKILL);
+    int status;
+    waitpid(_sentinel_pid, &status, WUNTRACED);
     broadcastMessage(DMT_KILL_PEER);
     JASSERT_STDERR << "DMTCP coordinator exiting... (per request)\n";
     for (size_t i = 0; i < clients.size(); i++) {
