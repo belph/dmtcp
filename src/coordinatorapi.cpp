@@ -582,6 +582,7 @@ getSentinelPid(string progname)
   struct sockaddr_storage addr;
   uint32_t len;
   JNOTE("getting addr");
+
   SharedData::getCoordAddr((struct sockaddr *)&addr, &len);
   socklen_t addrlen = len;
   JNOTE("Initializing socket");

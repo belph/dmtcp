@@ -22,12 +22,14 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/resource.h>
+#include <sys/prctl.h>
 #include "../jalib/jassert.h"
 #include "../jalib/jconvert.h"
 #include "../jalib/jfilesystem.h"
 #include "constants.h"
 #include "coordinatorapi.h"
 #include "dmtcpmessagetypes.h"
+
 #include "protectedfds.h"
 #include "shareddata.h"
 #include "syscallwrappers.h"
@@ -599,7 +601,9 @@ main(int argc, char **argv)
     JASSERT(false);
   }
   JNOTE("in child");
-
+#ifdef HAS_PR_SET_PTRACER
+  prctl(PR_SET_PDEATHSIG, SIGHUP);
+#endif // HAS_PR_SET_PTRACER
 
 
   // Initialize host and port now.  Will be used in low-level functions.

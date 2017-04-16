@@ -27,10 +27,8 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
-#include "config.h"
-#ifdef HAS_PR_SET_PTRACER
 #include <sys/prctl.h>
-#endif  // ifdef HAS_PR_SET_PTRACER
+#include "config.h"
 
 #include "../jalib/jassert.h"
 #include "../jalib/jfilesystem.h"
@@ -763,7 +761,7 @@ forkWithPid(int pid)
   }
   // Still in parent. Unlock and close
   JASSERT(new_pid == pid)
-    (pid).Text("failed to fork with correct PID");
+    (new_pid) (pid).Text("failed to fork with correct PID");
   JASSERT(flock(fd, LOCK_UN) != -1)
     (NS_LAST_PID).Text("failed to unlock ns_last_pid file");
   JASSERT(close(fd) != -1)
@@ -1024,8 +1022,13 @@ main(int argc, char **argv)
   CoordinatorInfo coordInfo;
   struct in_addr localIPAddr;
 
-  pid_t sentinel_pid = CoordinatorAPI::getSentinelPid("dmtcp_restart");
-  connect_to_namespace(sentinel_pid);
+  pid_t sentinel_pid =
+    CoordinatorAPI::connectAndGetSentinelPid(allowedModes, "dmtcp_restart");
+
+  Util::NamespaceSet dmtcp_namespace(sentinel_pid);
+  JNOTE("Connecting to namespaces of process: ").Print(sentinel_pid);
+  dmtcp_namespace.connectns();
+  dmtcp_namespace.closens();
 
   pid_t child_pid;
   pid_t new_pid;
@@ -1043,21 +1046,23 @@ main(int argc, char **argv)
   //       running yet.
   snprintf(cmd, 64, "sysctl kernel.ns_last_pid=%d", new_pid - 1);
   system(cmd);
-  if (!(child_pid = fork())) {
-    if (foundNonOrphan) {
-      t->createProcess(true);
-    } else {
-      /* we were unable to find any non-orphaned procs.
-       * pick the first one and orphan it */
-      t = independentProcessTreeRoots.begin()->second;
-      t->createOrphanedProcess(true);
-    }
-
-    JASSERT(false).Text("unreachable");
-    return -1;
-  } else {
-    int wstatus;
-    waitpid(child_pid, &wstatus, 0);
-    return wstatus;
+  JASSERT((child_pid = fork()) >= 0)
+    .Text("Failed to fork launcher");
+  if (child_pid) {
+    return Util::continueAsChild(child_pid);
+    JASSERT(false);
   }
+  JNOTE("in child");
+  prctl(PR_SET_PDEATHSIG, SIGHUP);
+  if (foundNonOrphan) {
+    t->createProcess(true);
+  } else {
+    /* we were unable to find any non-orphaned procs.
+     * pick the first one and orphan it */
+    t = independentProcessTreeRoots.begin()->second;
+    t->createOrphanedProcess(true);
+  }
+
+  JASSERT(false).Text("unreachable");
+  return -1;
 }
