@@ -245,6 +245,18 @@ CoordClient::readProcessInfo(DmtcpMessage &msg)
   }
 }
 
+static void reap_children() {
+  int status;
+  while (1) {
+    int ret = waitpid(-1, &status, WUNTRACED);
+    if (ret == -1) {
+      // if there are no children,
+      // avoid spinlock (onConnect() will send a signal)
+      pause();
+    }
+  }
+}
+
 static void
 run_dummy_process(int pipe_fd)
 {
@@ -260,7 +272,7 @@ run_dummy_process(int pipe_fd)
   JASSERT(mount("proc", "/proc", "proc", 0, NULL) != -1)
     .Text("Failed to mount /proc");
   JNOTE("successfully initialized sentinel process");
-  pause();
+  reap_children();
 }
 
 DmtcpCoordinator::DmtcpCoordinator()
@@ -860,6 +872,7 @@ DmtcpCoordinator::onConnect()
   string remoteIP = inet_ntoa(sin->sin_addr);
 
   JTRACE("accepting new connection") (remote.sockfd()) (JASSERT_ERRNO);
+  kill(_sentinel_pid, SIGUSR1);
 
   if (!remote.isValid()) {
     remote.close();

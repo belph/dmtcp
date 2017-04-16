@@ -592,6 +592,14 @@ main(int argc, char **argv)
   JNOTE("Connecting to namespaces of process: ").Print(sentinel_pid);
   dmtcp_namespace.connectns();
   dmtcp_namespace.closens();
+
+  // A coordinator was just started, so the
+  // child process should avoid creating a
+  // new one.
+  if (allowedModes == COORD_NEW) {
+    allowedModes = COORD_ANY;
+  }
+
   pid_t child_pid;
   JASSERT((child_pid = fork()) >= 0)
     .Text("Failed to fork launcher");
