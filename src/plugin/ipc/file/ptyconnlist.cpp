@@ -103,7 +103,10 @@ PtyConnList::scanForPreExisting()
   // FIXME: Detect stdin/out/err fds to detect duplicates.
   vector<int>fds = jalib::Filesystem::ListOpenFds();
   string ctty = jalib::Filesystem::GetControllingTerm();
-  string parentCtty = jalib::Filesystem::GetControllingTerm(getppid());
+  string parentCtty = "";
+  pid_t parent_pid = getppid();
+  if (parent_pid)
+    parentCtty = jalib::Filesystem::GetControllingTerm(getppid());
 
   for (size_t i = 0; i < fds.size(); ++i) {
     int fd = fds[i];
