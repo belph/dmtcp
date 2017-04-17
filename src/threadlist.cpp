@@ -796,7 +796,7 @@ ThreadList::postRestart(double readTime)
     thread->ckptReadTime = readTime;
 
     JNOTE("creating thread") (thread->tid);
-    nsLastPid.lockAndSetLastPid(thread->tid);
+    nsLastPid.lockAndSetLastPid(thread->tid - 1);
 
     /* Create the thread so it can finish restoring itself. */
     pid_t tid = _real_clone(restarthread,
