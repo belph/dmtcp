@@ -696,7 +696,7 @@ restorememoryareas(RestoreInfo *rinfo_ptr)
 
   /* System calls and libc library calls should now work. */
 
-  DPRINTF("MTCP restore is now complete.  Continuing by jumping to\n"
+  MTCP_PRINTF("MTCP restore is now complete.  Continuing by jumping to\n"
           "  ThreadList::postRestart() back inside libdmtcp.so: %p...\n",
           restore_info.post_restart);
 

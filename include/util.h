@@ -121,6 +121,17 @@ class NamespaceSet
     int mnt_fd;
     int usr_fd;
 };
+
+class ProcSysKernelNsLastPid
+{
+  public:
+    void lockAndSetLastPid(pid_t);
+    void unlock();
+    pid_t forkWithPid(pid_t);
+  private:
+    int last_pid_fd;
+};
+
 int continueAsChild(pid_t child_pid);
 void lockFile(int fd);
 void unlockFile(int fd);

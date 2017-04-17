@@ -43,8 +43,6 @@
 #define BINARY_NAME         "dmtcp_restart"
 #define MTCP_RESTART_BINARY "mtcp_restart"
 
-#define NS_LAST_PID "/proc/sys/kernel/ns_last_pid"
-
 using namespace dmtcp;
 
 // Copied from mtcp/mtcp_restart.c.
@@ -137,6 +135,8 @@ static int readCkptHeader(const string &path, ProcessInfo *pInfo);
 static int openCkptFileToRead(const string &path);
 static int forkWithPid(int pid);
 
+static Util::ProcSysKernelNsLastPid nsLastPid;
+
 class RestoreTarget
 {
   public:
@@ -205,12 +205,13 @@ class RestoreTarget
 
     void createDependentChildProcess()
     {
-      pid_t pid = forkWithPid(_pInfo.pid());
+      pid_t pid = nsLastPid.forkWithPid(_pInfo.pid());
 
       JASSERT(pid != -1);
       if (pid != 0) {
         return;
       }
+      JNOTE("createDependentChildProcess") (getpid());
       createProcess();
     }
 
@@ -220,9 +221,11 @@ class RestoreTarget
 
       JASSERT(pid != -1);
       if (pid == 0) {
-        pid_t gchild = forkWithPid(_pInfo.pid());
+        JNOTE("createDependentNonChildProcess: pid") (getpid());
+        pid_t gchild = nsLastPid.forkWithPid(_pInfo.pid());
         JASSERT(gchild != -1);
         if (gchild != 0) {
+          JNOTE("createDependentNonChildProcess: gchild") (getpid());
           exit(0);
         }
         createProcess();
@@ -233,13 +236,15 @@ class RestoreTarget
 
     void createOrphanedProcess(bool createIndependentRootProcesses = false)
     {
-      pid_t pid = forkWithPid(_pInfo.pid());
+      pid_t pid = fork();
 
       JASSERT(pid != -1);
       if (pid == 0) {
-        pid_t gchild = fork();
+        JNOTE("createOrphanedProcess: pid") (getpid());
+        pid_t gchild = nsLastPid.forkWithPid(_pInfo.pid());
         JASSERT(gchild != -1);
         if (gchild != 0) {
+          JNOTE("createOrphanedProcess: gchild") (getpid());
           exit(0);
         }
         createProcess(createIndependentRootProcesses);
@@ -254,6 +259,7 @@ class RestoreTarget
       UniquePid::ThisProcess() = _pInfo.upid();
       UniquePid::ParentProcess() = _pInfo.uppid();
       Util::initializeLogFile(_pInfo.procname());
+      JNOTE("createProcess") (getpid());
 
       if (createIndependentRootProcesses) {
         DmtcpUniqueProcessId compId = _pInfo.compGroup().upid();
@@ -737,36 +743,6 @@ setNewCkptDir(char *path)
   if (fd != PROTECTED_CKPT_DIR_FD) {
     close(fd);
   }
-}
-
-static int
-forkWithPid(int pid)
-{
-  JASSERT(pid > 1) (pid);
-  int fd = open(NS_LAST_PID, O_RDWR | O_CREAT, 0644);
-  JASSERT(fd != -1) (NS_LAST_PID);
-  JASSERT(flock(fd, LOCK_EX) != -1)
-    (NS_LAST_PID).Text("failed to lock ns_last_pid file");
-
-  char to_write[16];
-  snprintf(to_write, 16, "%d", pid - 1);
-  JASSERT((size_t)write(fd, to_write, strlen(to_write))
-          == strlen(to_write))
-    (NS_LAST_PID).Text("failed to write to ns_last_pid");
-  int new_pid = fork();
-  if (new_pid == 0) {
-    JASSERT(close(fd) != -1)
-      (NS_LAST_PID).Text("failed to close in child");
-    return 0;
-  }
-  // Still in parent. Unlock and close
-  JASSERT(new_pid == pid)
-    (new_pid) (pid).Text("failed to fork with correct PID");
-  JASSERT(flock(fd, LOCK_UN) != -1)
-    (NS_LAST_PID).Text("failed to unlock ns_last_pid file");
-  JASSERT(close(fd) != -1)
-    (NS_LAST_PID).Text("failed to close in parent");
-  return new_pid;
 }
 
 static void

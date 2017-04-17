@@ -23,6 +23,7 @@
 #include <pwd.h>
 #include <string.h>
 #include <sys/fcntl.h>
+#include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include "../jalib/jassert.h"
@@ -33,6 +34,8 @@
 #include "coordinatorapi.h"  // for COORD_JOIN, COORD_NEW, COORD_ANY
 #include "protectedfds.h"
 #include "uniquepid.h"
+
+#define NS_LAST_PID "/proc/sys/kernel/ns_last_pid"
 
 using namespace dmtcp;
 
@@ -47,6 +50,47 @@ Util::NamespaceSet::NamespaceSet(pid_t pid) {
   snprintf(filename, 64, "/proc/%d/ns/pid", pid);
   JASSERT((pid_fd = open(filename, O_RDONLY, 0644)) != -1)
     .Text("Failed to open pid namespace");
+}
+
+void
+Util::ProcSysKernelNsLastPid::lockAndSetLastPid(pid_t last_pid) {
+  JASSERT(last_pid > 0) (last_pid);
+  last_pid_fd = open(NS_LAST_PID, O_RDWR | O_CREAT, 0644);
+  JASSERT(last_pid_fd != -1) (NS_LAST_PID);
+  JASSERT(flock(last_pid_fd, LOCK_EX) != -1)
+    (NS_LAST_PID).Text("failed to lock ns_last_pid file");
+
+  char to_write[16];
+  snprintf(to_write, 16, "%d", last_pid);
+  JASSERT((size_t)write(last_pid_fd, to_write, strlen(to_write))
+          == strlen(to_write))
+    (NS_LAST_PID).Text("failed to write to ns_last_pid");
+}
+
+void
+Util::ProcSysKernelNsLastPid::unlock() {
+  JASSERT(Util::isValidFd(last_pid_fd));
+  JASSERT(flock(last_pid_fd, LOCK_UN) != -1)
+    (NS_LAST_PID).Text("failed to unlock ns_last_pid file");
+  JASSERT(close(last_pid_fd) != -1)
+    (NS_LAST_PID).Text("failed to close in parent");
+}
+
+pid_t
+Util::ProcSysKernelNsLastPid::forkWithPid(pid_t pid) {
+  JASSERT(pid > 1) (pid);
+  lockAndSetLastPid(pid - 1);
+  pid_t new_pid = fork();
+  if (new_pid == 0) {
+    JASSERT(close(last_pid_fd) != -1)
+      (NS_LAST_PID).Text("failed to close in child");
+    return 0;
+  }
+  // Still in parent. Unlock and close
+  JASSERT(new_pid == pid)
+    (new_pid) (pid).Text("failed to fork with correct PID");
+  unlock();
+  return new_pid;
 }
 
 void

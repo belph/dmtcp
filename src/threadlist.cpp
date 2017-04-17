@@ -71,6 +71,8 @@ extern sem_t sem_launch; // allocated in coordinatorapi.cpp
 static sem_t semNotifyCkptThread;
 static sem_t semWaitForCkptThreadSignal;
 
+static Util::ProcSysKernelNsLastPid nsLastPid;
+
 static void *checkpointhread(void *dummy);
 static void suspendThreads();
 static void resumeThreads();
@@ -736,6 +738,7 @@ ThreadList::postRestart(double readTime)
 {
   Thread *thread;
   sigset_t tmp;
+  JNOTE("postRestart");
 
   /* If DMTCP_RESTART_PAUSE==2, sleep 15 seconds and allow gdb attach. */
   char * pause_param = getenv("DMTCP_RESTART_PAUSE");
@@ -792,6 +795,9 @@ ThreadList::postRestart(double readTime)
     }
     thread->ckptReadTime = readTime;
 
+    JNOTE("creating thread") (thread->tid);
+    nsLastPid.lockAndSetLastPid(thread->tid);
+
     /* Create the thread so it can finish restoring itself. */
     pid_t tid = _real_clone(restarthread,
 
@@ -802,6 +808,8 @@ ThreadList::postRestart(double readTime)
                              * later via restoreTLSState. */
                             thread->flags & ~CLONE_SETTLS,
                             clonearg, thread->ptid, NULL, thread->ctid);
+
+    nsLastPid.unlock();
 
     JASSERT(tid > 0);  // (JASSERT_ERRNO) .Text("Error recreating thread");
     JTRACE("Thread recreated") (thread->tid) (tid);
