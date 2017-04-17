@@ -434,6 +434,11 @@ main(int argc, char **argv)
 
   initializeJalib();
 
+  // The child will automatically move to /, so
+  // we need to save this to move it back
+  char cwd[PATH_MAX];
+  getcwd(cwd, PATH_MAX);
+
   UniquePid::ThisProcess(true);
   Util::initializeLogFile(tmpDir);
 
@@ -718,6 +723,10 @@ main(int argc, char **argv)
     // system("stat /proc/self/stat");
     // char *args_zsh[] = {"/bin/zsh"};
     // _real_execv("/bin/zsh", args_zsh);
+
+    // change back to original CWD
+    chdir(cwd);
+
     // run the user program
     char **newArgv = NULL;
     if (testScreen(argv, &newArgv)) {
