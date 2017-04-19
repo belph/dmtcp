@@ -150,6 +150,7 @@ Util::continueAsChild(pid_t child_pid) {
       break;
     }
   }
+  JNOTE("child exited with status") (child_pid) (status);
   if (WIFEXITED(status)) {
     return WEXITSTATUS(status);
   } else if (WIFSIGNALED(status)) {
