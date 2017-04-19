@@ -100,7 +100,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-@FAST_RST_VIA_MMAP_TRUE@am__append_1 = -DFAST_RST_VIA_MMAP 
+@FAST_RST_VIA_MMAP_TRUE@am__append_1 = -DFAST_RST_VIA_MMAP
 bin_PROGRAMS = $(d_bindir)/dmtcp_launch$(EXEEXT) \
 	$(d_bindir)/dmtcp_command$(EXEEXT) \
 	$(d_bindir)/dmtcp_coordinator$(EXEEXT) \
@@ -123,7 +123,7 @@ AR = ar
 AM_V_AR = $(am__v_AR_@AM_V@)
 am__v_AR_ = $(am__v_AR_@AM_DEFAULT_V@)
 am__v_AR_0 = @echo "  AR      " $@;
-am__v_AR_1 = 
+am__v_AR_1 =
 libdmtcpinternal_a_AR = $(AR) $(ARFLAGS)
 libdmtcpinternal_a_LIBADD =
 am_libdmtcpinternal_a_OBJECTS = dmtcpmessagetypes.$(OBJEXT) \
@@ -160,7 +160,7 @@ __d_bindir__dmtcp_command_DEPENDENCIES = libdmtcpinternal.a libjalib.a \
 am__dirstamp = $(am__leading_dot)dirstamp
 am___d_bindir__dmtcp_coordinator_OBJECTS =  \
 	dmtcp_coordinator.$(OBJEXT) lookup_service.$(OBJEXT) \
-	restartscript.$(OBJEXT)
+	restartscript.$(OBJEXT) dmtcp_init.$(OBJEXT)
 __d_bindir__dmtcp_coordinator_OBJECTS =  \
 	$(am___d_bindir__dmtcp_coordinator_OBJECTS)
 __d_bindir__dmtcp_coordinator_DEPENDENCIES = libdmtcpinternal.a \
@@ -203,11 +203,11 @@ am__v_P_1 = :
 AM_V_GEN = $(am__v_GEN_@AM_V@)
 am__v_GEN_ = $(am__v_GEN_@AM_DEFAULT_V@)
 am__v_GEN_0 = @echo "  GEN     " $@;
-am__v_GEN_1 = 
+am__v_GEN_1 =
 AM_V_at = $(am__v_at_@AM_V@)
 am__v_at_ = $(am__v_at_@AM_DEFAULT_V@)
 am__v_at_0 = @
-am__v_at_1 = 
+am__v_at_1 =
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/include
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -217,30 +217,30 @@ COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 AM_V_CC = $(am__v_CC_@AM_V@)
 am__v_CC_ = $(am__v_CC_@AM_DEFAULT_V@)
 am__v_CC_0 = @echo "  CC      " $@;
-am__v_CC_1 = 
+am__v_CC_1 =
 CCLD = $(CC)
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
-am__v_CCLD_1 = 
+am__v_CCLD_1 =
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
-am__v_lt_1 = 
+am__v_lt_1 =
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
 AM_V_CXX = $(am__v_CXX_@AM_V@)
 am__v_CXX_ = $(am__v_CXX_@AM_DEFAULT_V@)
 am__v_CXX_0 = @echo "  CXX     " $@;
-am__v_CXX_1 = 
+am__v_CXX_1 =
 CXXLD = $(CXX)
 CXXLINK = $(CXXLD) $(AM_CXXFLAGS) $(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) \
 	-o $@
 AM_V_CXXLD = $(am__v_CXXLD_@AM_V@)
 am__v_CXXLD_ = $(am__v_CXXLD_@AM_DEFAULT_V@)
 am__v_CXXLD_0 = @echo "  CXXLD   " $@;
-am__v_CXXLD_1 = 
+am__v_CXXLD_1 =
 SOURCES = $(libdmtcpinternal_a_SOURCES) $(libjalib_a_SOURCES) \
 	$(libnohijack_a_SOURCES) $(libsyscallsreal_a_SOURCES) \
 	$(__d_bindir__dmtcp_command_SOURCES) \
@@ -549,7 +549,8 @@ nobase_noinst_HEADERS = constants.h \
 	syscallwrappers.h \
 	threadlist.h threadinfo.h siginfo.h \
 	uniquepid.h processinfo.h ckptserializer.h \
-	mtcp/ldt.h mtcp/restore_libc.h mtcp/tlsutil.h
+	mtcp/ldt.h mtcp/restore_libc.h mtcp/tlsutil.h \
+	dmtcp_init.h
 
 
 # Note that libdmtcpinternal.a does not include wrappers.
@@ -572,7 +573,7 @@ libjalib_a_SOURCES = $(jalibdir)/jalib.cpp $(jalibdir)/jassert.cpp \
 # An executable should use either libsyscallsreal.a or libnohijack.a -- not both
 libsyscallsreal_a_SOURCES = syscallsreal.c trampolines.cpp
 libnohijack_a_SOURCES = nosyscallsreal.c dmtcpnohijackstubs.cpp
-__d_bindir__dmtcp_coordinator_SOURCES = dmtcp_coordinator.cpp lookup_service.cpp restartscript.cpp
+__d_bindir__dmtcp_coordinator_SOURCES = dmtcp_coordinator.cpp lookup_service.cpp restartscript.cpp dmtcp_init.cpp
 __d_bindir__dmtcp_nocheckpoint_SOURCES = dmtcp_nocheckpoint.c
 __d_bindir__dmtcp_restart_SOURCES = dmtcp_restart.cpp util_exec.cpp
 __d_bindir__dmtcp_command_SOURCES = dmtcp_command.cpp
@@ -646,22 +647,22 @@ $(am__aclocal_m4_deps):
 clean-noinstLIBRARIES:
 	-test -z "$(noinst_LIBRARIES)" || rm -f $(noinst_LIBRARIES)
 
-libdmtcpinternal.a: $(libdmtcpinternal_a_OBJECTS) $(libdmtcpinternal_a_DEPENDENCIES) $(EXTRA_libdmtcpinternal_a_DEPENDENCIES) 
+libdmtcpinternal.a: $(libdmtcpinternal_a_OBJECTS) $(libdmtcpinternal_a_DEPENDENCIES) $(EXTRA_libdmtcpinternal_a_DEPENDENCIES)
 	$(AM_V_at)-rm -f libdmtcpinternal.a
 	$(AM_V_AR)$(libdmtcpinternal_a_AR) libdmtcpinternal.a $(libdmtcpinternal_a_OBJECTS) $(libdmtcpinternal_a_LIBADD)
 	$(AM_V_at)$(RANLIB) libdmtcpinternal.a
 
-libjalib.a: $(libjalib_a_OBJECTS) $(libjalib_a_DEPENDENCIES) $(EXTRA_libjalib_a_DEPENDENCIES) 
+libjalib.a: $(libjalib_a_OBJECTS) $(libjalib_a_DEPENDENCIES) $(EXTRA_libjalib_a_DEPENDENCIES)
 	$(AM_V_at)-rm -f libjalib.a
 	$(AM_V_AR)$(libjalib_a_AR) libjalib.a $(libjalib_a_OBJECTS) $(libjalib_a_LIBADD)
 	$(AM_V_at)$(RANLIB) libjalib.a
 
-libnohijack.a: $(libnohijack_a_OBJECTS) $(libnohijack_a_DEPENDENCIES) $(EXTRA_libnohijack_a_DEPENDENCIES) 
+libnohijack.a: $(libnohijack_a_OBJECTS) $(libnohijack_a_DEPENDENCIES) $(EXTRA_libnohijack_a_DEPENDENCIES)
 	$(AM_V_at)-rm -f libnohijack.a
 	$(AM_V_AR)$(libnohijack_a_AR) libnohijack.a $(libnohijack_a_OBJECTS) $(libnohijack_a_LIBADD)
 	$(AM_V_at)$(RANLIB) libnohijack.a
 
-libsyscallsreal.a: $(libsyscallsreal_a_OBJECTS) $(libsyscallsreal_a_DEPENDENCIES) $(EXTRA_libsyscallsreal_a_DEPENDENCIES) 
+libsyscallsreal.a: $(libsyscallsreal_a_OBJECTS) $(libsyscallsreal_a_DEPENDENCIES) $(EXTRA_libsyscallsreal_a_DEPENDENCIES)
 	$(AM_V_at)-rm -f libsyscallsreal.a
 	$(AM_V_AR)$(libsyscallsreal_a_AR) libsyscallsreal.a $(libsyscallsreal_a_OBJECTS) $(libsyscallsreal_a_LIBADD)
 	$(AM_V_at)$(RANLIB) libsyscallsreal.a
@@ -792,6 +793,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dmtcp_command.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dmtcp_coordinator.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dmtcp_dlsym.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dmtcp_init.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dmtcp_launch.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dmtcp_nocheckpoint.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dmtcp_restart.Po@am__quote@

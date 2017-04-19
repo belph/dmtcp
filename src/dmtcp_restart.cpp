@@ -126,6 +126,7 @@ typedef map<UniquePid, RestoreTarget *>RestoreTargetMap;
 RestoreTargetMap targets;
 RestoreTargetMap independentProcessTreeRoots;
 bool noStrictChecking = false;
+static pid_t maxPid = -1;
 static string thePortFile;
 CoordinatorMode allowedModes = COORD_ANY;
 
@@ -217,7 +218,8 @@ class RestoreTarget
 
     void createDependentNonChildProcess()
     {
-      pid_t pid = fork();
+      // Kernel should give us a PID >= maxPid
+      pid_t pid = nsLastPid.forkWithPid(maxPid);
 
       JASSERT(pid != -1);
       if (pid == 0) {
@@ -236,7 +238,8 @@ class RestoreTarget
 
     void createOrphanedProcess(bool createIndependentRootProcesses = false)
     {
-      pid_t pid = fork();
+      // Kernel should give us a PID >= maxPid
+      pid_t pid = nsLastPid.forkWithPid(maxPid);
 
       JASSERT(pid != -1);
       if (pid == 0) {
@@ -941,8 +944,10 @@ main(int argc, char **argv)
 
     JTRACE("Will restart ckpt image") (argv[0]);
     RestoreTarget *t = new RestoreTarget(argv[0]);
+    JNOTE("target") (t->pid()) (t->upid()) (t->sid());
     targets[t->upid()] = t;
   }
+
 
   // Prepare list of independent process tree roots
   RestoreTargetMap::iterator i;
@@ -972,17 +977,23 @@ main(int argc, char **argv)
 
   /* Try to find non-orphaned process in independent procs list */
   RestoreTarget *t = NULL;
+  RestoreTarget *nonOrphan = NULL;
   bool foundNonOrphan = false;
   RestoreTargetMap::iterator it;
   for (it = independentProcessTreeRoots.begin();
        it != independentProcessTreeRoots.end();
        it++) {
     t = it->second;
-    if (!t->isOrphan()) {
+    maxPid = std::max(maxPid, t->pid());
+    if (!foundNonOrphan && !t->isOrphan()) {
       foundNonOrphan = true;
-      break;
+      nonOrphan = t;
     }
   }
+  if (foundNonOrphan) {
+    t = nonOrphan;
+  }
+  maxPid++;
 
   JASSERT(t != NULL);
   JASSERT(t->pid() != 0);
@@ -1009,6 +1020,7 @@ main(int argc, char **argv)
   pid_t child_pid;
   pid_t new_pid;
   char cmd[64];
+  JNOTE("foundNonOrphan") (foundNonOrphan);
   if (foundNonOrphan) {
     new_pid = t->pid();
   } else {

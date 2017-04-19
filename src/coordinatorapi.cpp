@@ -418,7 +418,7 @@ void waitForBarrier(const string& barrierId)
 
   msg.assertValid();
   if (msg.type == DMT_KILL_PEER) {
-    JTRACE("Received KILL message from coordinator, exiting");
+    JNOTE("Received KILL message from coordinator, exiting");
     _exit(0);
   }
 
@@ -479,6 +479,7 @@ startNewCoordinator(CoordinatorMode mode)
       modeStr,
       NULL
     };
+    JNOTE("spinning up coordinator");
     execv(args[0], args);
     JASSERT(false)(coordinator)(JASSERT_ERRNO).Text(
       "exec(dmtcp_coordinator) failed");

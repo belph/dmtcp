@@ -67,7 +67,8 @@ nobase_noinst_HEADERS = constants.h \
 	syscallwrappers.h \
 	threadlist.h threadinfo.h siginfo.h \
 	uniquepid.h processinfo.h ckptserializer.h \
-	mtcp/ldt.h mtcp/restore_libc.h mtcp/tlsutil.h
+	mtcp/ldt.h mtcp/restore_libc.h mtcp/tlsutil.h \
+	dmtcp_init.h
 
 # Note that libdmtcpinternal.a does not include wrappers.
 # dmtcp_launch, dmtcp_command, dmtcp_coordinator, etc.
@@ -89,7 +90,7 @@ libjalib_a_SOURCES = $(jalibdir)/jalib.cpp $(jalibdir)/jassert.cpp \
 libsyscallsreal_a_SOURCES = syscallsreal.c trampolines.cpp
 libnohijack_a_SOURCES = nosyscallsreal.c dmtcpnohijackstubs.cpp
 
-__d_bindir__dmtcp_coordinator_SOURCES = dmtcp_coordinator.cpp lookup_service.cpp restartscript.cpp
+__d_bindir__dmtcp_coordinator_SOURCES = dmtcp_coordinator.cpp lookup_service.cpp restartscript.cpp dmtcp_init.cpp
 
 __d_bindir__dmtcp_nocheckpoint_SOURCES = dmtcp_nocheckpoint.c
 

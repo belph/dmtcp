@@ -84,6 +84,7 @@
 #include "restartscript.h"
 #include "syscallwrappers.h"
 #include "util.h"
+#include "dmtcp_init.h"
 #undef min
 #undef max
 
@@ -245,14 +246,24 @@ CoordClient::readProcessInfo(DmtcpMessage &msg)
   }
 }
 
+// inspired by tini
 static void reap_children() {
   int status;
+  sigset_t sigset;
+  struct timespec ts = { .tv_sec = 1, .tv_nsec = 0 };
+  JASSERT(!sigaddset(&sigset, SIGCHLD));
   while (1) {
     int ret = waitpid(-1, &status, WUNTRACED);
     if (ret == -1) {
       // if there are no children,
       // avoid spinlock (onConnect() will send a signal)
-      pause();
+      siginfo_t info;
+      if (sigtimedwait(&sigset, &info, &ts) == -1) {
+        JASSERT(errno == EAGAIN || errno == EINTR);
+      } else {
+        // This is the only signal we're listening for
+        JASSERT(info.si_signo == SIGCHLD);
+      }
     }
   }
 }
@@ -272,7 +283,7 @@ run_dummy_process(int pipe_fd)
   JASSERT(mount("proc", "/proc", "proc", 0, NULL) != -1)
     .Text("Failed to mount /proc");
   JNOTE("successfully initialized sentinel process");
-  reap_children();
+  dmtcp_init_main();
 }
 
 DmtcpCoordinator::DmtcpCoordinator()
@@ -421,9 +432,6 @@ DmtcpCoordinator::handleUserCommand(char cmd, DmtcpMessage *reply /*= NULL*/)
   case 'q': case 'Q':
   {
     JNOTE("killing all connected peers and quitting ...");
-    kill(_sentinel_pid, SIGKILL);
-    int status;
-    waitpid(_sentinel_pid, &status, WUNTRACED);
     broadcastMessage(DMT_KILL_PEER);
     JASSERT_STDERR << "DMTCP coordinator exiting... (per request)\n";
     for (size_t i = 0; i < clients.size(); i++) {
@@ -432,6 +440,13 @@ DmtcpCoordinator::handleUserCommand(char cmd, DmtcpMessage *reply /*= NULL*/)
     listenSock->close();
     preExitCleanup();
     JTRACE("Exiting ...");
+    int status;
+    // FIXME: This should probably send some user signal
+    // to the sentinel process instead and make it perform
+    // any waits before gracefully exiting
+    while (waitpid(-1, &status, WNOHANG) != 0);
+    kill(_sentinel_pid, SIGKILL);
+    waitpid(_sentinel_pid, &status, WUNTRACED);
     exit(0);
     break;
   }
