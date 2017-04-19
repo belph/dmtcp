@@ -533,7 +533,9 @@ def runTestRaw(name, numProcs, cmds):
 
   def testRestart():
     #build restart command
-    cmd=BIN+"dmtcp_restart --quiet"
+    cmd=BIN+"dmtcp_restart"
+    if not args.verbose:
+      cmd += " --quiet"
     for i in os.listdir(ckptDir):
       if i.endswith(".dmtcp"):
         cmd+= " "+ckptDir+"/"+i

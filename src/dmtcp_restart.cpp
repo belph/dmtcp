@@ -134,7 +134,6 @@ static void setEnvironFd();
 static void runMtcpRestart(int is32bitElf, int fd, ProcessInfo *pInfo);
 static int readCkptHeader(const string &path, ProcessInfo *pInfo);
 static int openCkptFileToRead(const string &path);
-static int forkWithPid(int pid);
 
 static Util::ProcSysKernelNsLastPid nsLastPid;
 
@@ -748,35 +747,6 @@ setNewCkptDir(char *path)
   }
 }
 
-static void
-connect_to_namespace(pid_t sentinel) {
-  char filename[64];
-  snprintf(filename, 64, "/proc/%d/ns/user", sentinel);
-  int fd;
-  JASSERT((fd = open(filename, O_RDONLY, 0644)) != -1)
-    .Text("Failed to open user namespace");
-  JASSERT(setns(fd, CLONE_NEWUSER) == 0)
-    .Text("Failed to set user namespace");
-  JASSERT(close(fd) == 0)
-    .Text("Failed to close user namespace");
-
-  snprintf(filename, 64, "/proc/%d/ns/mnt", sentinel);
-  JASSERT((fd = open(filename, O_RDONLY, 0644)) != -1)
-    .Text("Failed to open mount namespace");
-  JASSERT(setns(fd, CLONE_NEWNS) == 0)
-    .Text("Failed to set mount namespace");
-  JASSERT(close(fd) == 0)
-    .Text("Failed to close mount namespace");
-
-  snprintf(filename, 64, "/proc/%d/ns/pid", sentinel);
-  JASSERT((fd = open(filename, O_RDONLY, 0644)) != -1)
-    .Text("Failed to open pid namespace");
-  JASSERT(setns(fd, CLONE_NEWPID) == 0)
-    .Text("Failed to set pid namespace");
-  JASSERT(close(fd) == 0)
-    .Text("Failed to close pid namespace");
-}
-
 // shift args
 #define shift argc--, argv++
 
@@ -1024,7 +994,10 @@ main(int argc, char **argv)
   if (foundNonOrphan) {
     new_pid = t->pid();
   } else {
-    new_pid = independentProcessTreeRoots.begin()->second->pid();
+    // We want to fork with a new PID here, since
+    // we are going to orphan the first process we
+    // create.
+    new_pid = maxPid++;
   }
   // HACK: The restarter itself cannot modify the ns_last_pid file
   //       within the coordinator's PID namespace, so we delegate
